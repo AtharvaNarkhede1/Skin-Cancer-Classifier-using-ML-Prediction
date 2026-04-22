@@ -1,12 +1,16 @@
 """
 preprocessing.py
 -----------------
-Data loading, preprocessing, and augmentation for HAM10000 skin cancer dataset.
-Binary classification: Malignant (mel) vs Benign (all others).
+Data loading, preprocessing, and augmentation for the skin cancer dataset.
+Loads images directly from folder structure:
+    data/train/
+        benign/     → label 0
+        malignant/  → label 1
+
+Binary classification: Benign (0) vs Malignant (1).
 """
 
 import numpy as np
-import pandas as pd
 import os
 from PIL import Image
 from glob import glob
@@ -22,47 +26,10 @@ IMG_WIDTH = 125
 IMG_CHANNELS = 3
 IMG_SHAPE = (IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS)
 
-# Lesion type readable names
-LESION_TYPE_DICT = {
-    'nv': 'Melanocytic nevi',
-    'mel': 'Melanoma',
-    'bkl': 'Benign keratosis-like lesions',
-    'bcc': 'Basal cell carcinoma',
-    'akiec': 'Actinic keratoses',
-    'vasc': 'Vascular lesions',
-    'df': 'Dermatofibroma',
+CLASSES = {
+    'benign': 0,
+    'malignant': 1,
 }
-
-
-def load_metadata(data_dir):
-    """
-    Load HAM10000 metadata CSV and map each image_id to its file path.
-    Adds binary label: 1 = Malignant (mel), 0 = Benign (everything else).
-    """
-    csv_path = os.path.join(data_dir, 'HAM10000_metadata.csv')
-    df = pd.read_csv(csv_path)
-
-    # Build { image_id : full_path } from both image folders
-    imageid_path_dict = {}
-    for folder in ['HAM10000_images_part_1', 'HAM10000_images_part_2']:
-        folder_path = os.path.join(data_dir, folder)
-        for filepath in glob(os.path.join(folder_path, '*.jpg')):
-            image_id = os.path.splitext(os.path.basename(filepath))[0]
-            imageid_path_dict[image_id] = filepath
-
-    df['path'] = df['image_id'].map(imageid_path_dict)
-    df['cell_type'] = df['dx'].map(LESION_TYPE_DICT)
-
-    # Binary label: mel → 1 (Malignant), rest → 0 (Benign)
-    df['label'] = (df['dx'] == 'mel').astype(int)
-
-    # Fill missing age with mean
-    df['age'] = df['age'].fillna(int(df['age'].mean()))
-
-    # Drop rows with missing image paths
-    df = df.dropna(subset=['path'])
-
-    return df
 
 
 def load_and_resize_image(image_path):
@@ -74,33 +41,54 @@ def load_and_resize_image(image_path):
 
 def prepare_dataset(data_dir):
     """
-    Full pipeline: load metadata → load images → normalise → split.
-    Returns X_train, X_val, X_test, y_train, y_val, y_test (all numpy).
+    Full pipeline: scan benign/malignant folders → load images → normalise → split.
+
+    Parameters
+    ----------
+    data_dir : str
+        Path to the train directory containing 'benign' and 'malignant' subfolders.
+
+    Returns
+    -------
+    X_train, X_val, X_test, y_train, y_val, y_test  (all numpy arrays)
     """
-    df = load_metadata(data_dir)
-
-    print(f"Total samples : {len(df)}")
-    print(f"  Benign      : {(df['label'] == 0).sum()}")
-    print(f"  Malignant   : {(df['label'] == 1).sum()}")
-
-    # Load all images (shows progress)
-    print("Loading images...")
     images = []
     labels = []
-    for i, (_, row) in enumerate(df.iterrows()):
-        try:
-            img = load_and_resize_image(row['path'])
-            images.append(img)
-            labels.append(row['label'])
-        except Exception as e:
-            print(f"  Skipping {row['image_id']}: {e}")
-        if (i + 1) % 2000 == 0:
-            print(f"  Loaded {i + 1}/{len(df)} images...")
+
+    for class_name, label in CLASSES.items():
+        folder = os.path.join(data_dir, class_name)
+        if not os.path.isdir(folder):
+            raise FileNotFoundError(
+                f"Expected folder not found: {folder}\n"
+                f"Make sure '{class_name}' subfolder exists inside {data_dir}"
+            )
+
+        # Accept .jpg, .jpeg, .png
+        paths = (
+            glob(os.path.join(folder, '*.jpg')) +
+            glob(os.path.join(folder, '*.jpeg')) +
+            glob(os.path.join(folder, '*.png'))
+        )[:300]  # LIMIT TO 300 FOR BETTER ACCURACY
+
+        print(f"  [{class_name.upper()}]  found {len(paths)} images (label={label})")
+
+        for i, path in enumerate(paths):
+            try:
+                img = load_and_resize_image(path)
+                images.append(img)
+                labels.append(label)
+            except Exception as e:
+                print(f"    Skipping {os.path.basename(path)}: {e}")
+
+            if (i + 1) % 500 == 0:
+                print(f"    Loaded {i + 1}/{len(paths)} from {class_name}...")
 
     X = np.array(images, dtype='float32') / 255.0   # normalise to [0, 1]
     y = np.array(labels, dtype='float32')
 
-    print(f"Images loaded: {len(X)}")
+    print(f"\nTotal images loaded : {len(X)}")
+    print(f"  Benign            : {(y == 0).sum()}")
+    print(f"  Malignant         : {(y == 1).sum()}")
 
     # Split: 70 % train, 15 % val, 15 % test  (stratified)
     X_train, X_temp, y_train, y_temp = train_test_split(
@@ -117,12 +105,13 @@ def prepare_dataset(data_dir):
 def get_data_augmentor():
     """Returns an ImageDataGenerator for training-time augmentation."""
     return ImageDataGenerator(
-        rotation_range=10,
-        zoom_range=0.1,
+        rotation_range=15,
+        zoom_range=0.12,
         width_shift_range=0.12,
         height_shift_range=0.12,
         horizontal_flip=True,
         vertical_flip=True,
+        brightness_range=[0.85, 1.15],
     )
 
 

@@ -2,8 +2,9 @@
 train.py
 --------
 Training pipeline for the skin cancer binary classifier.
-Loads HAM10000 dataset, builds CNN, trains with augmentation,
-evaluates on test set, and saves model + plots.
+Loads images from data/train/{benign,malignant} folders,
+builds CNN, trains with augmentation, evaluates on test set,
+and saves model + plots.
 
 Usage:
     python -m src.train
@@ -41,7 +42,8 @@ def train():
     """Full training pipeline."""
 
     # ── Paths ────────────────────────────────────────────
-    data_dir = os.path.join(PROJECT_ROOT, 'data', 'archive_2')
+    # Dataset: data/train/benign  and  data/train/malignant
+    data_dir = os.path.join(PROJECT_ROOT, 'data', 'train')
     model_dir = os.path.join(PROJECT_ROOT, 'models')
     os.makedirs(model_dir, exist_ok=True)
     model_save_path = os.path.join(model_dir, 'skin_cancer_model.keras')
@@ -49,10 +51,11 @@ def train():
     # ── 1. Load & preprocess data ────────────────────────
     print("=" * 60)
     print("  SKIN CANCER CLASSIFIER — TRAINING")
+    print("  Dataset: folder-based (benign / malignant)")
     print("=" * 60)
     X_train, X_val, X_test, y_train, y_val, y_test = prepare_dataset(data_dir)
 
-    # ── 2. Compute class weights (dataset is imbalanced) ─
+    # ── 2. Compute class weights (dataset may be imbalanced) ─
     classes = np.unique(y_train)
     weights = compute_class_weight('balanced', classes=classes, y=y_train)
     class_weight = {int(c): float(w) for c, w in zip(classes, weights)}
@@ -100,7 +103,7 @@ def train():
     history = model.fit(
         train_generator,
         validation_data=(X_val, y_val),
-        epochs=50,
+        epochs=20,
         callbacks=callbacks,
         class_weight=class_weight,
     )
@@ -153,7 +156,7 @@ def _plot_history(history, save_dir):
     path = os.path.join(save_dir, 'training_history.png')
     plt.savefig(path, dpi=150)
     plt.close()
-    print(f"Training curves saved → {path}")
+    print(f"Training curves saved -> {path}")
 
 
 # ─── Helper: confusion matrix ────────────────────────────
@@ -170,7 +173,7 @@ def _plot_confusion_matrix(y_true, y_pred, save_dir):
     path = os.path.join(save_dir, 'confusion_matrix.png')
     plt.savefig(path, dpi=150)
     plt.close()
-    print(f"Confusion matrix saved → {path}")
+    print(f"Confusion matrix saved -> {path}")
 
 
 if __name__ == "__main__":
