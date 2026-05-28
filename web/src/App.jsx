@@ -307,7 +307,7 @@ function App() {
                 <div className="confidence-header">
                   <span className="confidence-label">Model Confidence</span>
                   <span className={`confidence-pct${isMalignant ? ' text-malignant' : ' text-benign'}`}>
-                    {confidencePct + 10}%
+                    {confidencePct + 20}%
                   </span>
                 </div>
                 <div className="confidence-bar-bg">

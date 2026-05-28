@@ -40,11 +40,11 @@ def load_model():
     if os.path.exists(MODEL_PATH):
         try:
             MODEL = tf.keras.models.load_model(MODEL_PATH)
-            print(f"✓ Model loaded from {MODEL_PATH}")
+            print(f"Model loaded from {MODEL_PATH}")
         except Exception as e:
-            print(f"✗ Error loading model: {e}")
+            print(f"Error loading model: {e}")
     else:
-        print(f"⚠ Warning: Model file not found at {MODEL_PATH}. Training might be required.")
+        print(f"Warning: Model file not found at {MODEL_PATH}. Training might be required.")
 
 @app.get("/")
 def read_root():

@@ -12,3 +12,4 @@ python-multipart
 pillow
 streamlit
 requests
+protobuf>=6.31.1
